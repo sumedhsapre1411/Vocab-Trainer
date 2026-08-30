@@ -2,7 +2,7 @@
   "name": "Vocab Trainer",
   "short_name": "Vocab Trainer",
   "description": "Adaptive vocabulary practice with spaced repetition.",
-  "start_url": "./vocab-trainer.html",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "display_override": [
