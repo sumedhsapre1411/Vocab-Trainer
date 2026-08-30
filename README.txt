@@ -1,26 +1,12 @@
-VOCAB TRAINER — INSTALLABLE PWA
+VOCAB TRAINER v3.1
 
-This package is ready to deploy as a Progressive Web App.
+UX fix:
+- The daily start prompt is no longer a forced popup/modal.
+- Opening the app shows a normal dashboard/home screen.
+- The dashboard shows today's question count, studied count, correct count and completion.
+- Start today's deck / Continue today's deck is an ordinary button.
+- The user can navigate to other app sections without being blocked by a modal.
+- Existing progress is preserved.
 
-Files:
-- vocab-trainer.html — the app
-- manifest.webmanifest — installation metadata
-- sw.js — offline caching
-- icons/ — app icons
-
-IMPORTANT:
-A PWA must be served from HTTPS (or localhost during development). Opening the HTML
-directly from Android Downloads/content:// will NOT make it a proper installable PWA.
-
-Recommended setup:
-1. Upload the contents of this folder to any static HTTPS host.
-2. Open the HTTPS URL in Chrome on Android.
-3. Use the Install button in the app, or Chrome menu -> Install app/Add to Home screen.
-4. Launch it from the new Vocab Trainer icon.
-
-Once installed from a stable HTTPS origin, browser storage is tied to that app origin,
-so your learning progress will no longer depend on Android's content:// file provider.
-
-The app retains the v2.3 features: adaptive review, separate numbered meanings,
-sample-sentence handling, flexible definition checking, daily randomization,
-and progress backup.
+Update GitHub Pages by replacing index.html, manifest.webmanifest, sw.js and icons/.
+Do not clear site data or uninstall the PWA.

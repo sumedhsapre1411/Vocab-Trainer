@@ -63,7 +63,7 @@ textarea{min-height:130px;resize:vertical}input:focus,textarea:focus{border-colo
 .start-screen h2{font-size:28px;margin:8px 0 10px}
 .start-screen p{color:#6b7280;margin:0 auto 22px;max-width:430px;line-height:1.5}
 .start-deck-btn{width:100%;max-width:420px;font-size:18px;padding:15px 18px}
-</style></head><body>
+.meaning-number{display:inline-block;font-size:12px;font-weight:700;opacity:.65;margin-bottom:6px}\n</style></head><body>
 <div class="wrap"><header><div><h1>Vocab Trainer</h1><div class="sub" id="label"></div></div><div style="display:flex;gap:7px;align-items:center"><button id="installBtn" class="icon" style="display:none" onclick="installPWA()">Install</button><button class="icon" onclick="openSettings()">⚙</button></div></header>
 <div class="stats"><div class="stat"><b id="today">0</b><span>today</span></div><div class="stat"><b id="mastered">0</b><span>mastered</span></div><div class="stat"><b id="remaining">0</b><span>to learn</span></div></div>
 <div class="progress"><div class="bar" id="bar"></div></div><div id="game"></div>
@@ -201,19 +201,35 @@ function showSynonyms(){
   T.hintsUsed++; T.hintsUsedThisQuestion=true;
   persist();
 }
+function renderHome(){
+  const total=(T.items||[]).length;
+  const done=Math.min(T.pos||0,total);
+  const score=T.score||0;
+  const pct=total?Math.round(done/total*100):0;
+  const hasDeck=Array.isArray(S.deck)&&S.deck.length>0;
+  return `<div class="home-dashboard">
+    <div class="start-screen">
+      <div style="font-size:42px">📚</div>
+      <h2>Today's Vocabulary</h2>
+      <p>${hasDeck ? `You have <b>${total}</b> questions in today's deck.` : "Your vocabulary deck is ready."}</p>
+      <div class="home-progress">
+        <div><b>${done}</b> / ${total} studied</div>
+        <div><b>${score}</b> correct</div>
+        <div><b>${pct}%</b> complete</div>
+      </div>
+      <button class="primary start-deck-btn" onclick="startTodayDeck()">
+        ${done>0 && done<total ? "▶ Continue today's deck" : done>=total && total>0 ? "↻ Review today's deck" : "▶ Start today's deck"}
+      </button>
+    </div>
+  </div>`;
+}
 function render(){
   if(!T.started){
-    const remaining=Math.max(0,(T.items||[]).length-(T.pos||0));
-    openSheet(`<div class="start-screen">
-      <h2>Ready to practice?</h2>
-      <p>Today's deck has <b>${remaining}</b> question${remaining===1?"":"s"} waiting for you.</p>
-      <button class="primary start-deck-btn" onclick="startTodayDeck()">▶ Start today's deck</button>
-      <button class="secondary" style="width:100%;max-width:420px;margin-top:10px" onclick="closeModal()">Not now</button>
-    </div>`);
-    return;
+    const root=document.getElementById("app")||document.getElementById("root");
+    if(root){root.innerHTML=renderHome(); return;}
   }
 
-  if(!T.items.length||T.pos>=T.items.length)makeRound();
+if(!T.items.length||T.pos>=T.items.length)makeRound();
   const q=current(),x=S.deck[q.wi],m=(x.meanings||[])[q.mi]||{text:x.definition,cloze:null};
   let content, label, cls;
   if(q.m==="word"){
@@ -221,7 +237,7 @@ function render(){
   }else if(q.m==="context" && m.cloze){
     label="Context → Word";content=m.cloze;cls="prompt";
   }else{
-    label="Meaning → Word";content=m.text;cls="prompt";
+    label="Meaning → Word";content=(x.meanings||[]).length>1 ? `<span class="meaning-number">Meaning ${q.mi+1}</span><br>${m.text}` : m.text;cls="prompt";
   }
   document.getElementById("game").innerHTML=`<div class="card">
     <div class="mode">${label} · ${T.pos+1}/${T.items.length}</div>
@@ -235,17 +251,28 @@ function render(){
   a.onkeydown=e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();check()}};
   update();
 }
+function normWord(x){
+  return String(x||"").toLowerCase()
+    .replace(/[’‘]/g,"'")
+    .replace(/[^a-z0-9]+/g," ")
+    .replace(/\\s+/g," ").trim();
+}
 function check(){
-  const q=current(),x=S.deck[q.wi],m=x.meanings[q.mi]||{text:x.definition,cloze:null},a=document.getElementById("ans").value.trim();
+  const q=current(),x=S.deck[q.wi],m=(x.meanings||[])[q.mi]||{text:x.definition,cloze:null},a=document.getElementById("ans").value.trim();
   if(q.m==="word"){
     const s=semanticScore(a,m.text),edit=sim(a,m.text);
     if(edit>=.78||s>=.65){finish(true,false);return}
     if(edit<.25 && s<.25){finish(false,false);return}
-    // Ambiguous paraphrases: let the learner self-grade after seeing the official meaning.
+    // Borderline definition answers are self-graded after seeing the card meaning.
     showUncertain(a,m.text);
   }else{
-    const s=sim(a,x.word);
-    finish(s>=.78,false);
+    // Meaning → Word: the learner is being asked for the word, so compare
+    // against the word itself. Exact matching is checked first. This is
+    // deliberately independent of which numbered meaning was selected.
+    const typed=normWord(a),expected=normWord(x.word);
+    const exact=typed===expected && typed.length>0;
+    const close=sim(a,x.word)>=.78;
+    finish(exact||close,false);
   }
 }
 function showUncertain(answer,meaning){
@@ -287,7 +314,6 @@ function update(){
 function startTodayDeck(){
   T.started=true;
   save();
-  closeModal();
   render();
 }
 function openStats(){
