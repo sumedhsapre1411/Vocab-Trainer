@@ -1,7 +1,7 @@
 {
   "name": "Vocab Trainer",
   "short_name": "Vocab Trainer",
-  "description": "Vocabulary practice with a non-blocking daily dashboard, multiple meanings, synonyms and activity tracking.",
+  "description": "Vocabulary practice with a non-blocking dashboard and closable add-word interface.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
