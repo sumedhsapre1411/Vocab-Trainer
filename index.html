@@ -58,6 +58,11 @@ textarea{min-height:130px;resize:vertical}input:focus,textarea:focus{border-colo
 .synonym-hint{width:100%;margin-top:9px}
 .synonym-box{margin-top:8px;padding:10px 12px;border-radius:10px;background:#f3f4f6;font-size:13px}
 .synonym-chip{display:inline-block;padding:4px 8px;margin:3px 4px 3px 0;border-radius:999px;background:#fff;border:1px solid #e5e7eb}
+
+.start-screen{text-align:center;padding:38px 18px 28px}
+.start-screen h2{font-size:28px;margin:8px 0 10px}
+.start-screen p{color:#6b7280;margin:0 auto 22px;max-width:430px;line-height:1.5}
+.start-deck-btn{width:100%;max-width:420px;font-size:18px;padding:15px 18px}
 </style></head><body>
 <div class="wrap"><header><div><h1>Vocab Trainer</h1><div class="sub" id="label"></div></div><div style="display:flex;gap:7px;align-items:center"><button id="installBtn" class="icon" style="display:none" onclick="installPWA()">Install</button><button class="icon" onclick="openSettings()">⚙</button></div></header>
 <div class="stats"><div class="stat"><b id="today">0</b><span>today</span></div><div class="stat"><b id="mastered">0</b><span>mastered</span></div><div class="stat"><b id="remaining">0</b><span>to learn</span></div></div>
@@ -87,7 +92,7 @@ if(!S){
   }catch(e){}
 }
 let D=TODAY();
-if(!S.days[D])S.days[D]={items:[],pos:0,score:0};
+if(!S.days[D])S.days[D]={items:[],pos:0,score:0,started:false};
 let T=S.days[D];
 
 let dbPromise=null;
@@ -197,6 +202,17 @@ function showSynonyms(){
   persist();
 }
 function render(){
+  if(!T.started){
+    const remaining=Math.max(0,(T.items||[]).length-(T.pos||0));
+    openSheet(`<div class="start-screen">
+      <h2>Ready to practice?</h2>
+      <p>Today's deck has <b>${remaining}</b> question${remaining===1?"":"s"} waiting for you.</p>
+      <button class="primary start-deck-btn" onclick="startTodayDeck()">▶ Start today's deck</button>
+      <button class="secondary" style="width:100%;max-width:420px;margin-top:10px" onclick="closeModal()">Not now</button>
+    </div>`);
+    return;
+  }
+
   if(!T.items.length||T.pos>=T.items.length)makeRound();
   const q=current(),x=S.deck[q.wi],m=(x.meanings||[])[q.mi]||{text:x.definition,cloze:null};
   let content, label, cls;
@@ -255,7 +271,7 @@ function randomizeToday(){
   if(!confirm("Randomize today's set? Completed questions stay completed; the remaining questions are reshuffled."))return;
   const done=T.items.slice(0,T.pos);
   const remaining=shuffle(T.items.slice(T.pos));
-  T.items=[...done,...remaining];
+  T.started=false;T.items=[...done,...remaining];
   persist();
   render();
 }
@@ -267,6 +283,12 @@ function update(){
   document.getElementById("remaining").textContent=Math.max(0,all.length-m);
   document.getElementById("bar").style.width=(m/all.length*100)+"%";
   document.getElementById("label").textContent=all.length+" meanings · adaptive review";
+}
+function startTodayDeck(){
+  T.started=true;
+  save();
+  closeModal();
+  render();
 }
 function openStats(){
   const all=allItems(),a=Object.values(S.cards),m=all.filter(it=>cs(it.wi,it.mi).mastered).length,n=a.reduce((s,x)=>s+x.seen,0),ac=n?Math.round(a.reduce((s,x)=>s+x.ok,0)/n*100):0;
@@ -382,7 +404,7 @@ function addMeaningRow(){
   const row=document.createElement("div");
   row.className="meaning-row";
   row.dataset.n=n;
-  row.innerHTML=`<div class="meaning-head"><span class="meaning-num">Meaning ${n}</span>${n>1?'<button class="secondary remove-meaning" onclick="this.closest(\\'.meaning-row\\').remove();renumberMeaningRows()">Remove</button>':''}</div>
+  row.innerHTML=`<div class="meaning-head"><span class="meaning-num">Meaning ${n}</span>${n>1?'<button class="secondary remove-meaning" onclick="this.closest(\'.meaning-row\').remove();renumberMeaningRows()">Remove</button>':''}</div>
     <textarea class="meaning-input" placeholder="Meaning"></textarea>
     <input class="sentence-input" placeholder="Sample sentence (optional)">
     <input class="synonym-input" placeholder="Synonyms (optional, comma separated)">`;
@@ -436,7 +458,7 @@ function importProgress(e){
       const x=JSON.parse(r.result);
       if(!x.deck||!x.cards||!x.days)throw new Error();
       if(!confirm("Replace current deck and progress with this backup?"))return;
-      S=x;D=TODAY();if(!S.days[D])S.days[D]={items:[],pos:0,score:0}; if(!S.activity)S.activity=[]; T=S.days[D];
+      S=x;D=TODAY();if(!S.days[D])S.days[D]={items:[],pos:0,score:0,started:false}; if(!S.activity)S.activity=[]; T=S.days[D];
       persist();alert("Backup restored.");closeModal();render();
     }catch(e){alert("Invalid Vocab Trainer backup.")}
   };
@@ -452,14 +474,32 @@ function storageCheck(){
 }
 function setDaily(){const n=Math.max(5,Math.min(50,parseInt(document.getElementById("daily").value)||20));S.settings.daily=n;save();alert("Daily target set to "+n+".");closeModal();update()}
 (async function(){
+  const localSnapshot=S;
   try{
     const db=await openDB();
     const raw=await new Promise((resolve,reject)=>{
       const tx=db.transaction("state","readonly"),r=tx.objectStore("state").get(KEY);
       r.onsuccess=()=>resolve(r.result||null);r.onerror=()=>reject(r.error);
     });
-    if(raw){S=JSON.parse(raw);D=TODAY();if(!S.days[D])S.days[D]={items:[],pos:0,score:0}; if(!S.activity)S.activity=[]; T=S.days[D];}
+    if(raw){
+      const dbState=JSON.parse(raw);
+      if((dbState.deck?.length||0)>0 || !(localSnapshot?.deck?.length||0)){
+        S=dbState;
+      }else{
+        S=localSnapshot;
+        persist();
+      }
+    }
   }catch(e){}
+  if(!S || !Array.isArray(S.deck) || !S.deck.length){
+    S={deck:INITIAL_DECK,cards:{},days:{},settings:{daily:20},activity:[]};
+    save();
+  }
+  D=TODAY();
+  if(!S.days[D])S.days[D]={items:[],pos:0,score:0,started:false};
+  if(!S.activity)S.activity=[];
+  T=S.days[D];
+  if(typeof T.started!=="boolean")T.started=(T.pos||0)>0;
   render();
 })();
 </script>
